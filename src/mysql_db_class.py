@@ -4,7 +4,7 @@
 import mysql.connector as mysqldb
 
 
-class mysql_db_class(object):
+class mysql_db_class():
     """ Simple class wrapping access to mysql database """
 
     def __init__(self, path="/home/spennington/.mylogin.cnf", group="remote", password=None,
@@ -19,7 +19,7 @@ class mysql_db_class(object):
             self.connection = mysqldb.connect(option_files=path, option_groups=group,
                                               use_unicode=True, charset="utf8",
                                               collation="utf8_general_ci",
-                                              use_pure=True,                    
+                                              use_pure=True,
                                               db=self.database)
         else:
             self.connection = mysqldb.connect(

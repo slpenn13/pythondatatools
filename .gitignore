@@ -131,3 +131,5 @@ dmypy.json
 
 # VIM
 *.sw[op]
+bin/tags
+src/tags

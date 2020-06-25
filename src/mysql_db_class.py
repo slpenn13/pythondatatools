@@ -2,6 +2,7 @@
 #!/usr/bin/python3
 # import MySQLdb as mysqldb
 import mysql.connector as mysqldb
+import myloginpath
 
 
 class mysql_db_class():
@@ -15,7 +16,22 @@ class mysql_db_class():
         # self.password = password
         self.database = db
 
-        if password is None and path is not None:
+        if password is None and path and isinstance(path, str) and\
+                path.find('mylogin.cnf') >= 0:
+            conf = myloginpath.parse(group)
+            conf['db'] = db
+            # conf['password'] = conf['password'].replace("\"", '')
+            conf['use_pure'] = True
+            print(conf)
+            self.connection = mysqldb.connect(**conf)
+            # usr = conf['user'] + "@" + conf['host'] + ":" + str(conf['port'])
+            # self.connection = mysqldb.connect(option_files=path, option_groups=group,
+            #                                 use_unicode=True, db=db)
+            #    user=conf['user'], password=conf['password'], host=conf['host'],
+            #    port=conf['port'], db=db)
+
+        if password is None and path and isinstance(path, str) and\
+                path.find('mylogin.cnf') < 0:
             self.connection = mysqldb.connect(option_files=path, option_groups=group,
                                               use_unicode=True, charset="utf8",
                                               collation="utf8_general_ci",

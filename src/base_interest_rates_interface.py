@@ -22,7 +22,8 @@ class base_rates_db_interface():
 
             if "path" in options.keys() and "group" in options.keys():
                 self.mysql_conn = dbsql.mysql_db_class(path=options["path"],
-                                                       group=options["group"], password=None)
+                                                       group=options["group"], password=None,
+                                                       db="Investing")
                 if self.mysql_conn is None:
                     raise ValueError("Unable to connect to SQL Server (path)")
             elif "password" in options and options["password"] != "":

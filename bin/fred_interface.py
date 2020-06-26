@@ -162,7 +162,6 @@ if __name__ == "__main__":
         else:
             db_interface = None
 
-            
         if "append" in options and options["append"] > 0 and "current_view" in options:
             options["start_date"] = db_interface.calc_most_recent_date(options["start_date"])
             dbc.print_helper(("Updated start date " + str(options["start_date"])), dbg=dbg)

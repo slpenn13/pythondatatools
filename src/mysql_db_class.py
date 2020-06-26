@@ -2,6 +2,7 @@
 #!/usr/bin/python3
 # import MySQLdb as mysqldb
 import mysql.connector as mysqldb
+from mysql.connector import errorcode
 import myloginpath
 
 
@@ -13,22 +14,8 @@ class mysql_db_class():
         self.connection = None
         self.host = host
         self.user = user
-        # self.password = password
         self.database = db
-
-        if password is None and path and isinstance(path, str) and\
-                path.find('mylogin.cnf') >= 0:
-            conf = myloginpath.parse(group)
-            conf['db'] = db
-            # conf['password'] = conf['password'].replace("\"", '')
-            conf['use_pure'] = True
-            print(conf)
-            self.connection = mysqldb.connect(**conf)
-            # usr = conf['user'] + "@" + conf['host'] + ":" + str(conf['port'])
-            # self.connection = mysqldb.connect(option_files=path, option_groups=group,
-            #                                 use_unicode=True, db=db)
-            #    user=conf['user'], password=conf['password'], host=conf['host'],
-            #    port=conf['port'], db=db)
+        self.port = 3306
 
         if password is None and path and isinstance(path, str) and\
                 path.find('mylogin.cnf') < 0:
@@ -38,10 +25,35 @@ class mysql_db_class():
                                               use_pure=True,
                                               db=self.database)
         else:
-            self.connection = mysqldb.connect(
-                host=self.host, user=self.user, password=password, db=self.database
-            )
+            if password is None and path and isinstance(path, str) and\
+                path.find('mylogin.cnf') >= 0:
+                conf = myloginpath.parse(group)
 
+                if conf and isinstance(conf, dict):
+                    print(conf)
+                    self.user = conf['user']
+                    self.host = conf['host']
+                    password = conf['password'].replace('"', '')
+                    if 'port' in conf.keys():
+                        self.port = conf['port']
+
+                else:
+                    raise ValueError("There was a problem with .mylogin.cnf")
+            # conf['password'] = conf['password'].replace("\"", '')
+            # conf['password'] = conf['password'].encode(encoding='utf-8')
+            try:
+                self.connection = mysqldb.connect(
+                    user=self.user, host=self.host, password=password,
+                    port=self.port, use_pure=False, ssl_disabled=True, db=self.database)
+            except mysqldb.Error as err:
+                if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+                    print('(1): ')
+                elif err.errno == errorcode.ER_BAD_DB_ERROR:
+                    print('(2): ')
+                else:
+                    print('U:  ' + str(err.errno))
+                print(err)
+                raise ValueError("Failed to connect to MySQL DB")
         self.cursor = self.connection.cursor()
 
         if self.database is not None:

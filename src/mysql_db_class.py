@@ -30,7 +30,7 @@ class mysql_db_class():
                 conf = myloginpath.parse(group)
 
                 if conf and isinstance(conf, dict):
-                    print(conf)
+                    # print(conf)
                     self.user = conf['user']
                     self.host = conf['host']
                     password = conf['password'].replace('"', '')

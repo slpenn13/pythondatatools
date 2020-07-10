@@ -237,7 +237,9 @@ class base_rates_db_interface():
 
             elif result and current_max is not None:
                 dte = bu.dt.datetime.strptime(current_max, "%Y-%m-%d")
-                dteq = self.extract_db_result_value(result)
+                dteq = self.extract_db_result_value(result,
+                                                    position=self.current_view_query.vars)
+
                 if determine_periodicity:
                     statement_frequency = self.extract_db_result_value(
                         result, (len(result[0])-1))
@@ -263,8 +265,12 @@ class base_rates_db_interface():
         """ Simple method for extracting results from query / SP results based on position or
             Index_name
         """
-        if isinstance(result, list) and position is not None:
+        if isinstance(result, list) and position is not None and isinstance(position, int):
             value = result[0][position]
+        elif isinstance(result, list) and position is not None and isinstance(position, list):
+            value = result[0][position[0]]
+            for loc in np.arange(1, len(position)):
+                value = min(value, result[0][position[loc]])
         elif isinstance(result, list) and "location" in self.options["current_view"]:
             value = result[0][self.options['current_view']['location']]
         else:

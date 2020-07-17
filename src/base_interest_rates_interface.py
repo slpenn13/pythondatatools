@@ -265,13 +265,16 @@ class base_rates_db_interface():
         """ Simple method for extracting results from query / SP results based on position or
             Index_name
         """
-        if isinstance(result, list) and position is not None and isinstance(position, int):
+        if isinstance(result[0], dict) and position is not None and isinstance(position, str):
             value = result[0][position]
-        elif isinstance(result, list) and position is not None and isinstance(position, list):
+        if isinstance(result[0], tuple) and position is not None and isinstance(position, int):
+            value = result[0][position]
+        elif isinstance(result[0], dict) and position is not None and\
+                isinstance(position, list) and isinstance(position[0], str):
             value = result[0][position[0]]
             for loc in np.arange(1, len(position)):
                 value = min(value, result[0][position[loc]])
-        elif isinstance(result, list) and "location" in self.options["current_view"]:
+        elif isinstance(result[0], tuple) and "location" in self.options["current_view"]:
             value = result[0][self.options['current_view']['location']]
         else:
             value = result[0][self.options['index_name']]

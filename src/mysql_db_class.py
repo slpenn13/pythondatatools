@@ -164,6 +164,8 @@ class mysql_db_class():
         try:
             cursor = self.connection.cursor(dictionary=True)
             success = cursor.callproc(sp_name, sp_args_list)
+
+            # print(cursor.column_names) -- columns name not useful
             for result in cursor.stored_results():
                 success = result.fetchall()
             # print(success)

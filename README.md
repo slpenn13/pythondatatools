@@ -1,5 +1,8 @@
 # pythondatatools
-Tools for extracting and managing data extraction
+Tools for extracting and managing data extraction. The library includes
+
+## Version 0.1.1
+* Added sql_alchemy interface (sql_alchemy_class.py)
 
 ## The directory structure
 * __bin__ : contains stand alone applications, e.g. fred_interface.py which can be run directly
@@ -11,6 +14,7 @@ Tools for extracting and managing data extraction
 
 ## Functionality
 1. Mysql Interface
+2. Slqachemy Inteface to sqlite (**under developement**, Wed Aug 12 10:17:17 CDT 2020)
 2. API interface to St. Louis Federal Reserve data store (FRED)
 3. Intereface to ECB exchange rates store
 4. HTML scraping tools

@@ -61,7 +61,7 @@ class mysql_db_class():
 
     def insert(self, query, params_tuple=None):
         """ Simple insert query -- with roll back in case of failure , returns 1
-            in case of success
+            in case of success 0
         """
         success = 1
         try:

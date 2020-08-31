@@ -274,6 +274,9 @@ class base_rates_db_interface():
             value = result[0][position[0]]
             for loc in np.arange(1, len(position)):
                 value = min(value, result[0][position[loc]])
+
+            if isinstance(value, bu.dt.date):
+                value = bu.dt.datetime(value.year, value.month, value.day, 0, 0)
         elif isinstance(result[0], tuple) and "location" in self.options["current_view"]:
             value = result[0][self.options['current_view']['location']]
         else:

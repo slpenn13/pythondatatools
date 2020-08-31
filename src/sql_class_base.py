@@ -11,6 +11,7 @@ class sql_type(Enum):
     STORED_PROCEDURE_RES = 2
     STORED_PROCEDURE_NO_RES = 3
     INSERT = 4
+    UPDATE = 5
 
 
 class sql_query_base():
@@ -35,6 +36,9 @@ class sql_query_base():
 
         if q_str.upper().startswith("INSERT"):
             self.construct_insert(info)
+
+        elif q_str.upper().startswith("UPDATE"):
+            self.construct_update(info)
 
         elif q_str.upper().startswith("SELECT"):
             self.sql_type_ind = sql_type.SELECT
@@ -72,6 +76,17 @@ class sql_query_base():
             self.columns = co.OrderedDict()
             for val in info["items"]:
                 self.columns[val] = ''
+
+    def construct_update(self, info):
+        '''initializes UPDATE information '''
+        self.sql_type = sql_type.UPDATE
+        self.return_result = False
+        if "update" in info.keys() and isinstance(info["update"], dict) and\
+                "items" in info["update"].keys():
+            self.q_str = "UPDATE " + info['table'] + " SET %(field)s = %(result)s WHERE " +\
+                    info['index_name'] +"=%(date)s;"
+        else:
+            raise ValueError("Faulty specification -- update")
 
     def construct_sp(self, info):
         """ initializes stored procedure information """

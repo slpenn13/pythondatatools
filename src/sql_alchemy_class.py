@@ -130,7 +130,7 @@ class sqlalchemy_db_class():
             success = 0
         except ValueError as v:
             print("Failed Insert {}".format(v))
-        except mysqldb.Error as err:
+        except sa.exc.SQLAlchemyError as err:
             print("Failed Insert: {}".format(err))
             self.connection.rollback()
 
@@ -185,7 +185,7 @@ class sqlalchemy_db_class():
             self.connection.commit()
             cursor.close()
             success = 0
-        except mysqldb.Error as err:
+        except sa.exc.SQLAlchemyError as err:
             print("Failed to exceute stored procedure: {}".format(err))
             self.connection.rollback()
 
@@ -204,7 +204,7 @@ class sqlalchemy_db_class():
             # print(success)
             # self.connection.commit()
             cursor.close()
-        except mysqldb.Error as err:
+        except sa.exc.SQLAlchemyError as err:
             print("Failed to exceute stored procedure: {}".format(err))
             self.connection.rollback()
 

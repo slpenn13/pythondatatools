@@ -118,9 +118,9 @@ class mysql_db_class():
             self.connection.commit()
             success = 0
         except ValueError as v:
-            print("Failed Insert {}".format(v))
+            print("Failed Update {}".format(v))
         except mysqldb.Error as err:
-            print("Failed Insert: {}".format(err))
+            print("Failed Update: {}".format(err))
             self.connection.rollback()
 
         return success

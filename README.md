@@ -1,8 +1,13 @@
 # pythondatatools
 Tools for extracting and managing data extraction. The library includes
 
+## Version 0.2.1
+
 ## Version 0.1.1
 * Added sql_alchemy interface (sql_alchemy_class.py)
+
+## Updates 0.3.0 (PROPOSED)
+* Update method specific to monthly data
 
 ## The directory structure
 * __bin__ : contains stand alone applications, e.g. fred_interface.py which can be run directly

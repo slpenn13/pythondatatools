@@ -98,47 +98,44 @@ class base_rates_db_interface():
             self.insert_query.construct_insert_start(include_index=True)
             self.insert_query.append_names(excludes=self.options["index_name"], append="")
 
-            row_width = df.shape[1]
-            row_count = 1
-            first_write = True
             # print_dbg = dbc.test_dbg(self.dbg)
+            not_triggered = True
             print_dbg = False
 
-            for row in df.iterrows():
+            for i, row in enumerate(df.iterrows()):
                 if  np.all(np.isnan(row[1])):
                     dbc.print_helper(("Excluding " + str(row[0])), dbg=self.dbg)
                 elif np.isnan(row[1]).sum() / float(df.shape[1]) > self.options["exclude_perc"]:
                     dbc.print_helper((" ".join(["Excluding (data @",
                                                 str(self.options["exclude_perc"]), ")",
                                                 str(row[0])])), dbg=self.dbg)
+
                 else:
-                    base = "('" + convert_timestamp(row[0]) + "', "
-                    j = 1
+                    arr = row[1].to_numpy(copy=True)
+                    mn = np.mean(arr, axis=0)
+                    var = np.var(arr, axis=0)
 
-                    insert = ", "
-                    for i in row[1]:
-                        if j == row_width:
-                            insert = ")"
-                        if np.isnan(i):
-                            base = base + 'NULL' + insert
-                        else:
-                            base = base + str(i) + insert
-                        j = j + 1
-
-                    if first_write:
-                        insert = "\n"
-                        first_write = False
+                    # TODO start coding here
+                    if mn < 0.0001 and var < 0.0001:
+                        dbc.print_helper(("Excluding (data @ {} {} {})".format(
+                            mn, var, str(row[0]))), dbg=self.dbg)
                     else:
-                        insert = ", \n"
+                        if isinstance(self.insert_query.columns, (dict, sbc.co.OrderedDict)):
+                            base = self.insert_query.append_values_dict(row)
+                        else:
+                            base = self.insert_query.append_values_naive(row)
 
-                    if print_dbg:
-                        dbc.print_helper((str(row_count) + " " + base), dbg=self.dbg)
-                    self.insert_query.append_query_element(base, append=insert)
+                        insert = "\n" if not_triggered else ", \n"
+                        not_triggered = False
 
-                row_count = row_count + 1
+                        if print_dbg:
+                            dbc.print_helper((str(i) + " " + base), dbg=self.dbg)
+                        self.insert_query.append_query_element(base, append=insert)
 
-            self.insert_query.clean_query_element()
-            build_status = 0
+            if not not_triggered:
+                self.insert_query.clean_query_element()
+                build_status = 0
+
         return build_status
 
     def db_dict_insert(self, df):
@@ -176,31 +173,34 @@ class base_rates_db_interface():
         """ Insert values into veritcal (tim-series) table"""
         if isinstance(df, pd.DataFrame) and not df.empty and self.insert_query:
             self.insert_query.construct_insert_start(True)
-            append = ", "
-            base_v = ""
 
             self.insert_query.append_names(self.options["index_name"], append="")
-            cols_final = len(self.insert_query.columns)
+            # TODO: start here
+            use_dict_ind = (len(self.options['columns']) > 4)
+            self.insert_query.append_insert_names(use_dict=use_dict_ind)
 
-            fld = "%s"
-            for j in range(1, cols_final+1):
-                if j == cols_final:
-                    append = ");"
-
-                prepend = "(" if j == 1 else ""
-                base_v = prepend + base_v + fld + append
-
-            self.insert_query.append_query_element(base_v, append="")
             self.insert_query.print_q_str("db_vertical init", dbg=self.dbg)
             vals = []
 
             for row in df.iterrows():
-                dt_val = row[0] if isinstance(row[0], str) else convert_timestamp(row[0])
+                dt_val = row[0] if isinstance(row[0], str) else sbc.convert_timestamp(row[0])
 
                 if np.isnan(row[1][0]):
                     dbc.print_helper(("Excluding: " + dt_val), dbg=self.dbg)
                 else:
-                    res = (dt_val, df.columns[0], str(row[1][0]), self.options["source"])
+                    if len(self.options['columns']) == 4:
+                        res = (dt_val, df.columns[0], str(row[1][0]), self.options["source"])
+                    elif len(self.options['columns']) > 4 and "keys" in self.options.keys():
+                        res = self.options['columns'].copy()
+                        res[self.options['keys']['date']] = dt_val
+                        res[self.options['keys']['id']] = df.columns[0]
+                        res[self.options['keys']['value']] = str(row[1][0])
+                        # print("HERE -- vertical insert")
+                        # print(res.values())
+                    else:
+                        if self.dbg:
+                            print("Warning -- fails insert criteria")
+
                     vals.append(res)
 
             if self.mysql_conn is not None:
@@ -211,6 +211,42 @@ class base_rates_db_interface():
                 dbc.print_helper(("SQL " + self.insert_query.get_query()), dbg=self.dbg)
                 print(vals)
 
+    def calc_start_date(self, start_date):
+        """ Calculates Start Date (as max date + 1) """
+        date = dbc.dt.datetime.now()
+
+        if dbc.dt.datetime.strptime(start_date, "%Y-%m-%d") > date:
+            sql = "SELECT * FROM " + self.options["table"] + ";"
+            if self.mysql_conn is not None:
+                res = self.mysql_conn.query(sql)
+                if res:
+                    date_final = res[0]['index_date'] + dbc.dt.timedelta(days=1)
+                    date_final = dbc.dt.datetime.strftime(date_final, "%Y-%m-%d")
+                else:
+                    raise ValueError("Empty Result -- calc_start_date")
+            else:
+                raise ValueError("Mysql Connection must be valid")
+        else:
+            date_final = start_date
+        return date_final
+
+    def execute_info_query(self):
+        ''' executes query used to calculate start and end dates '''
+        determine_periodicity = False
+
+        if self.current_view_query.sql_type_ind is sbc.sql_type.SELECT:
+            result = self.mysql_conn.query(self.current_view_query.get_query())
+        elif  self.current_view_query.sql_type_ind is sbc.sql_type.STORED_PROCEDURE_RES:
+            result = self.mysql_conn.execute_stored_procedure_result(
+                self.current_view_query.get_query(),
+                self.current_view_query.vars)
+
+            determine_periodicity = True
+        else:
+            result = None
+
+        return result, determine_periodicity
+
     def calc_most_recent_date(self, current_max=None):
         ''' Given current max date as string (in %Y-%m-%d format) & current max query determine max
             writeable date
@@ -218,18 +254,7 @@ class base_rates_db_interface():
         ret_value = None
 
         if self.current_view_query:
-            determine_periodicity = False
-
-            if self.current_view_query.sql_type_ind is sbc.sql_type.SELECT:
-                result = self.mysql_conn.query(self.current_view_query.get_query())
-            elif  self.current_view_query.sql_type_ind is sbc.sql_type.STORED_PROCEDURE_RES:
-                result = self.mysql_conn.execute_stored_procedure_result(
-                    self.current_view_query.get_query(),
-                    self.current_view_query.vars)
-
-                determine_periodicity = True
-            else:
-                result = None
+            result, determine_periodicity = self.execute_info_query()
 
             if result and current_max is None:
                 dteq = self.extract_db_result_value(result)
@@ -239,21 +264,22 @@ class base_rates_db_interface():
                 dte = bu.dt.datetime.strptime(current_max, "%Y-%m-%d")
                 dteq = self.extract_db_result_value(result,
                                                     position=self.current_view_query.vars)
+                if dteq and isinstance(dteq, bu.dt.date):
+                    dteq = bu.dt.datetime(dteq.year, dteq.month, dteq.day)
 
-                if determine_periodicity:
+                if dteq and determine_periodicity:
                     statement_frequency = self.extract_db_result_value(
                         result, (len(result[0])-1))
                     one_day = bu.calc_single_period_advance(
                         dteq.month, dteq.year, statement_frequency)
-
+                    # print("Freq: %s %s" % (statement_frequency, one_day))
                 else:
                     one_day = bu.dt.timedelta(days=1)
 
-                if dteq >= dte:
-                    dteq = dteq + one_day
-                    ret_value = bu.dt.datetime.strftime(dteq, "%Y-%m-%d")
+                if dteq:
+                    ret_value = (dteq + one_day if dteq >= dte else dte)
                 else:
-                    ret_value = current_max
+                    ret_value = dte
             else:
                 ret_value = current_max
         else:
@@ -261,19 +287,35 @@ class base_rates_db_interface():
 
         return ret_value
 
+    def calc_max_date(self):
+        ''' calculates maximum date based on view / sp '''
+        result, _ = self.execute_info_query()
+        ret_value = None
+
+        if result:
+            ret_value = str(self.extract_db_result_value(result))
+        return ret_value
+
     def extract_db_result_value(self, result, position=None):
         """ Simple method for extracting results from query / SP results based on position or
             Index_name
         """
+        # print(type(result), type(result[0]))
         if isinstance(result[0], dict) and position is not None and isinstance(position, str):
             value = result[0][position]
         if isinstance(result[0], tuple) and position is not None and isinstance(position, int):
             value = result[0][position]
         elif isinstance(result[0], dict) and position is not None and\
                 isinstance(position, list) and isinstance(position[0], str):
-            value = result[0][position[0]]
+            value = None
+            if result[0][position[0]]:
+                value = result[0][position[0]]
+
             for loc in np.arange(1, len(position)):
-                value = min(value, result[0][position[loc]])
+                if value and result[0][position[loc]]:
+                    value = min(value, result[0][position[loc]])
+                elif not value and result[0][position[loc]]:
+                    value = result[0][position[loc]]
 
             if isinstance(value, bu.dt.date):
                 value = bu.dt.datetime(value.year, value.month, value.day, 0, 0)
@@ -283,25 +325,3 @@ class base_rates_db_interface():
             value = result[0][self.options['index_name']]
 
         return value
-
-def convert_timestamp(val, split="-"):
-    """ Converts pandas TimeSta,mp into a date str"""
-    res = ""
-    if isinstance(val, pd.Timestamp):
-        dt2 = val.date()
-    elif isinstance(val, str):
-        dt2 = ""
-        if val.find(split) == 4:
-            dt2 = bu.dt.datetime.strptime(val, split.join(["%Y", "%m", "%d"]))
-        elif val.find("/") == 4:
-            dt2 = bu.dt.datetime.strptime(val, "/".join(["%Y", "%m", "%d"]))
-        else:
-            raise ValueError("String must be in %Y-%m-%d or %Y/%m/%d format")
-    else:
-        raise ValueError("Required Type TimeStamp " + str(type(val)))
-
-    mnth = str(dt2.month) if dt2.month > 9 else "0" + str(dt2.month)
-    day = str(dt2.day) if dt2.day > 9 else "0" + str(dt2.day)
-    res = split.join([str(dt2.year), mnth, day])
-
-    return res

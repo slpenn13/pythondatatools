@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 """EXTENDED  Interface to FRED"""
 # import sys
+import datetime as dt
 import pandas as pd
 import numpy as np
 import debug_control as dbc
@@ -130,5 +131,42 @@ class rates_db_interface_extended(biri.base_rates_db_interface):
                     else:
                         if self.print_dbg:
                             print("Not found %s %s" % (key, value))
+
+        return build_status
+
+    def db_dict_update(self, dict_res):
+        """ Constructs SQL UPDATE from DataFRame, assumes current and new merged into
+            single table
+        """
+        build_status = -1
+        if dict_res and isinstance(dict_res, dict):
+            build_status = 0
+            q_str = self.sql_update.q_str
+
+            for key, row in dict_res.items():
+                try:
+                    write_dict = row.copy()
+                    if isinstance(key, dt.datetime):
+                        write_dict['index'] = dt.datetime.strftime(key, "%Y-%m-%d")
+                    else:
+                        write_dict['index'] = key
+
+                    if self.print_dbg:
+                        print("%s -- %f %f %f %f %f \n %s" % (
+                            key, write_dict['CAD'], write_dict['EUR'], write_dict['GBP'],
+                            write_dict['JPY'], write_dict['CNY'], q_str))
+
+                    build_status += self.mysql_conn.update(
+                        q_str, write_dict)
+
+                except ValueError as v:
+                    print("Failed Update {}".format(v))
+                    continue
+                except biri.dbsql.mysqldb.Error as err:
+                    print("Failed Update: {}".format(err))
+                    continue
+                #else:
+                #    if self.print_dbg:
+                #        print("Not found %s" % (key))
 
         return build_status

@@ -1,7 +1,10 @@
 """ Class wrapper corresponding to SQL specification """
 #!/usr/bin/python3
 import collections as co
+import datetime as dt
 from enum import Enum, unique
+import numpy as np
+import pandas as pd
 import debug_control as dbc
 
 @unique
@@ -82,9 +85,15 @@ class sql_query_base():
         self.sql_type = sql_type.UPDATE
         self.return_result = False
         if "update" in info.keys() and isinstance(info["update"], dict) and\
-                "items" in info["update"].keys():
+                'query' not in info["update"].keys() and "items" in info["update"].keys():
             self.q_str = "UPDATE " + info['table'] + " SET %(field)s = %(result)s WHERE " +\
                     info['index_name'] +"=%(date)s;"
+        elif "update" in info.keys() and isinstance(info["update"], dict) and\
+                'query' in info["update"].keys():
+            if isinstance(info['update']['query'], list):
+                self.q_str = " ".join(info['update']['query'])
+            else:
+                self.q_str = info['update']['query']
         else:
             raise ValueError("Faulty specification -- update")
 
@@ -170,9 +179,61 @@ class sql_query_base():
         self.q_str = append.join([self.q_str, q_temp])
         self.q_str = "".join([self.q_str, ") VALUES "])
 
+    def append_values_naive(self, series):
+        ''' naive append of values '''
+        base = "('" + convert_timestamp(series[0]) + "', "
+        j = 1
+        row_width = len(series[1])
+
+        insert = ", "
+        for i in series[1]:
+            if j == row_width:
+                insert = ")"
+            if np.isnan(i):
+                base = base + 'NULL' + insert
+            else:
+                base = base + str(i) + insert
+            j = j + 1
+
+        return base
+
+    def append_values_dict(self, series):
+        ''' append values based on dictionary values '''
+        base = "('" + convert_timestamp(series[0]) + "', "
+        row_width = len(self.columns)-1
+
+        insert = ", "
+        for j, key in enumerate(self.columns.values()):
+            if j == row_width:
+                insert = ")"
+
+            if np.isnan(series[1][key]):
+                base = base + 'NULL' + insert
+            else:
+                base = base + str(series[1][key]) + insert
+
+        return base
+
     def append_query_element(self, val, append=", "):
         """ append element to current q_str using user spec'd split """
         self.q_str = append.join([self.q_str, val])
+
+    def append_insert_names(self, use_dict=False):
+        ''' Construct Values Statument for insert '''
+        base_v = ""
+        append = ", "
+        cols_final = len(self.columns)
+
+        fld = "%s"
+        for j, key in zip(range(1, cols_final+1), self.columns.keys()):
+            if j == cols_final:
+                append = ");"
+
+            prepend = "(" if j == 1 else ""
+            if use_dict:
+                fld = "%(" + key + ")s"
+            base_v = prepend + base_v + fld + append
+        self.append_query_element(base_v, append="")
 
     def clean_query_element(self, search="), \n", replace=");"):
         """ cleans final element if ends with search (default='), \n') """
@@ -241,6 +302,27 @@ def calculate_current_view(q_view, index_name):
 
     return result, determine_periodicity
 
+def convert_timestamp(val, split="-"):
+    """ Converts pandas TimeSta,mp into a date str"""
+    res = ""
+    if isinstance(val, pd.Timestamp):
+        dt2 = val.date()
+    elif isinstance(val, str):
+        dt2 = ""
+        if val.find(split) == 4:
+            dt2 = dt.datetime.strptime(val, split.join(["%Y", "%m", "%d"]))
+        elif val.find("/") == 4:
+            dt2 = dt.datetime.strptime(val, "/".join(["%Y", "%m", "%d"]))
+        else:
+            raise ValueError("String must be in %Y-%m-%d or %Y/%m/%d format")
+    else:
+        raise ValueError("Required Type TimeStamp " + str(type(val)))
+
+    mnth = str(dt2.month) if dt2.month > 9 else "0" + str(dt2.month)
+    day = str(dt2.day) if dt2.day > 9 else "0" + str(dt2.day)
+    res = split.join([str(dt2.year), mnth, day])
+
+    return res
 
 def calc_table_name(q_str, qtype):
     """ Calculates SQL table from query string """

@@ -92,6 +92,10 @@ class mysql_db_class():
         """
         success = 1
         try:
+            #if isinstance(vals[0], dict):
+            #    for itm in vals:
+            #        self.insert(query, params_tuple=itm)
+            #else:
             self.cursor.executemany(query, vals)
             self.connection.commit()
             success = 0

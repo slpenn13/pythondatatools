@@ -39,6 +39,7 @@ if __name__ == "__main__":
     args_dict = vars(args)
 
     dryrun = args.dryrun > 0
+    df_class = None
 
     if "options" in args_dict.keys() and args_dict["options"] is not None:
         # Must include host_ip, start_date, items & table
@@ -88,7 +89,7 @@ if __name__ == "__main__":
 
         if not dryrun:
             db_interface = rates_dbi.rates_db_interface_extended(options, dryrun)
-            options["start_date"] = fredi.calc_start_date(options, db_interface.mysql_conn)
+            options["start_date"] = db_interface.calc_start_date(options['start_date'])
         else:
             db_interface = None
 
@@ -124,9 +125,14 @@ if __name__ == "__main__":
                 raise ValueError("Faulty Configurion: missing api_key from JSON")
 
             if db_interface and isinstance(db_interface.dbg, dbc.debug_control):
-                df = fredi.fred_extract(options, dbg=db_interface.dbg)
+                df_class = fredi.fred_interface(options, dbg=db_interface.dbg)
             else:
-                df = fredi.fred_extract(options, dbg=dbg)
+                df_class = fredi.fred_interface(options, dbg=dbg)
+
+            if df_class:
+                df = df_class.df.copy()
+            else:
+                raise ValueError("Failed to load data")
         else:
             raise ValueError("Faulty Configurion: missing api_key")
 
@@ -165,6 +171,9 @@ if __name__ == "__main__":
     finally:
         if isinstance(dbg, dbc.debug_control):
             dbg.close()
+
+        if df_class:
+            del df_class
 
         if db_interface:
             del db_interface
